@@ -6,8 +6,8 @@ from PIL import Image
 import os
 from fpdf import FPDF
 from io import BytesIO
-from streamlit.components.v1 import html
 
+# הגדרות עזר
 def parse_number(number_str):
     try:
         return float(number_str.replace(',', '').replace('$', ''))
@@ -23,93 +23,139 @@ def format_number(value):
     except ValueError:
         return value
 
-def save_to_pdf(df, investment, annual_net_income, annual_value_increase, years, equity_invested, financing_percentage, annual_interest_rate, financing_years):
+# פונקציה ליצירת דו"ח PDF משודרג עם גרף ותיאור נתונים
+def save_to_pdf(df, params, chart_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-
+    
     # כותרת הדוח
     pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, 'Masor Investment Report', 0, 1, 'C')
-    pdf.ln(10)
-
+    pdf.cell(0, 10, 'דוח השקעות – Masor Investment Report', 0, 1, 'C')
+    pdf.ln(5)
+    
     # פרטי ההשקעה
     pdf.set_font('Arial', '', 10)
-    pdf.multi_cell(0, 10, f"""
-Investment Amount: {investment}
-Annual Net Income: {annual_net_income}
-Annual Value Increase: {annual_value_increase}
-Years: {years}
-Equity Invested: {equity_invested}
-Financing Percentage: {financing_percentage}%
-Annual Interest Rate: {annual_interest_rate}%
-Financing Years: {financing_years}
-""")
-    pdf.ln(10)
-
-    # טבלת תוצאות
+    investment_details = (
+        f"סכום השקעה: {params['investment']}\n"
+        f"תשואה נטו שנתית: {params['annual_net_income']}\n"
+        f"גידול ערך שנתי: {params['annual_value_increase']}\n"
+        f"שנים: {params['years']}\n"
+        f"הון מושקע: {params['equity_invested']}\n"
+        f"אחוז מימון: {params['financing_percentage']}%\n"
+        f"ריבית שנתית: {params['annual_interest_rate']}%\n"
+        f"שנים למימון: {params['financing_years']}\n"
+    )
+    pdf.multi_cell(0, 8, investment_details)
+    pdf.ln(5)
+    
+    # הוספת גרף מהדו"ח (תמונה)
+    if os.path.exists(chart_path):
+        pdf.image(chart_path, x=10, w=pdf.w - 20)
+        pdf.ln(10)
+    
+    # הוספת טבלה עם התוצאות
     pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, 'Results Table:', 0, 1)
+    pdf.cell(0, 10, 'טבלת תוצאות:', 0, 1)
     pdf.set_font('Arial', '', 10)
-    for i in range(len(df)):
-        row = df.iloc[i]
-        line = ', '.join([f'{col}: {row[col]}' for col in df.columns])
-        pdf.cell(0, 10, line, 0, 1)
-
-    # שמירת הפלט לקובץ בזיכרון (BytesIO)
+    for index, row in df.iterrows():
+        line = f"שנה: {row['Year']}, ערך: {row['Value']}"
+        pdf.cell(0, 8, line, 0, 1)
+    
+    # שמירת הדוח בזיכרון
     pdf_output = BytesIO()
     pdf_bytes = pdf.output(dest='S')
     if isinstance(pdf_bytes, str):
         pdf_bytes = pdf_bytes.encode('latin1')
     pdf_output.write(pdf_bytes)
     pdf_output.seek(0)
-    
     return pdf_output
 
+# התחלת האפליקציה
+st.set_page_config(page_title="Masor Investment Calculator", layout="wide")
+st.title("מחשבון השקעות – Masor Investment Calculator")
+st.markdown("### מערכת השקעות מתקדמת עם דוחות PDF, גרפים וטבלאות")
 
-# קוד האפליקציה הראשית
-
-st.title("Masor Investment Calculator")
-
-# הצגת הלוגו – אם הקובץ 'Masor_logo.png' נמצא בתיקייה
+# הצגת לוגו במרכז הסרגל הצדדי
 if os.path.exists("Masor_logo.png"):
-    st.image("Masor_logo.png", width=200)
+    st.sidebar.image("Masor_logo.png", width=200)
 else:
-    st.write("Logo file 'Masor_logo.png' not found.")
+    st.sidebar.write("קובץ הלוגו 'Masor_logo.png' לא נמצא.")
 
-# קלט מהמשתמש
-investment = st.number_input("Enter investment amount:", value=100000)
-annual_net_income = st.number_input("Enter annual net income:", value=5000)
-annual_value_increase = st.number_input("Enter annual value increase:", value=2000)
-years = st.number_input("Enter number of years:", value=10)
-equity_invested = st.number_input("Enter equity invested:", value=20000)
-financing_percentage = st.number_input("Enter financing percentage:", value=70)
-annual_interest_rate = st.number_input("Enter annual interest rate (in %):", value=5.0)
-financing_years = st.number_input("Enter financing years:", value=5)
+st.sidebar.markdown("### הזן את פרטי ההשקעה")
 
-# יצירת DataFrame לדוגמה
-data = {
-    "Year": list(range(1, years+1)),
-    "Value": [investment + i * (annual_net_income + annual_value_increase) for i in range(years)]
+# חלוקה לעמודות לקלט מתקדם
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    investment = st.number_input("סכום השקעה ($):", value=100000, step=1000)
+    annual_net_income = st.number_input("תשואה נטו שנתית ($):", value=5000, step=100)
+    annual_value_increase = st.number_input("גידול ערך שנתי ($):", value=2000, step=100)
+with col2:
+    years = st.number_input("מספר שנים:", value=10, step=1)
+    equity_invested = st.number_input("הון מושקע ($):", value=20000, step=1000)
+    financing_percentage = st.number_input("אחוז מימון (%):", value=70, step=1)
+
+annual_interest_rate = st.number_input("ריבית שנתית (%):", value=5.0, step=0.5)
+financing_years = st.number_input("מספר שנות מימון:", value=5, step=1)
+
+# אריזת כל הפרמטרים למילון
+params = {
+    "investment": investment,
+    "annual_net_income": annual_net_income,
+    "annual_value_increase": annual_value_increase,
+    "years": years,
+    "equity_invested": equity_invested,
+    "financing_percentage": financing_percentage,
+    "annual_interest_rate": annual_interest_rate,
+    "financing_years": financing_years
 }
-df = pd.DataFrame(data)
 
-st.write("### Investment Results")
+# חישוב השקעות – דוגמה פשוטה: ערך ההשקעה גדל כל שנה לפי נוסחה
+results = []
+for i in range(1, int(years) + 1):
+    value = investment + i * (annual_net_income + annual_value_increase)
+    results.append({"Year": i, "Value": value})
+df = pd.DataFrame(results)
+
+# תצוגת תוצאות במרכז המסך
+st.markdown("### תוצאות ההשקעה")
 st.dataframe(df)
 
-# הצגת גרף
-fig, ax = plt.subplots()
-ax.plot(df["Year"], df["Value"], marker='o')
-ax.set_xlabel("Year")
-ax.set_ylabel("Value")
-ax.set_title("Investment Growth")
+# יצירת גרף השקעות
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.plot(df["Year"], df["Value"], marker='o', color='blue', linewidth=2)
+ax.set_xlabel("שנה")
+ax.set_ylabel("ערך ההשקעה ($)")
+ax.set_title("צמיחת ההשקעה לאורך השנים")
+ax.grid(True)
 st.pyplot(fig)
 
-# יצירת דוח PDF והצגת כפתור להורדה
-pdf_data = save_to_pdf(df, investment, annual_net_income, annual_value_increase, years, equity_invested, financing_percentage, annual_interest_rate, financing_years)
+# שמירת הגרף כתמונה זמנית עבור הדוח
+chart_path = "temp_chart.png"
+fig.savefig(chart_path, bbox_inches="tight")
+plt.close(fig)
+
+# כפתורי הורדה – דו"ח PDF וקובץ CSV
+st.markdown("### הורדת דוחות")
+pdf_data = save_to_pdf(df, params, chart_path)
 st.download_button(
-    label="Download PDF Report",
+    label="הורד דו"ח PDF",
     data=pdf_data,
     file_name="investment_report.pdf",
     mime="application/pdf"
 )
+
+csv_data = df.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="הורד קובץ CSV",
+    data=csv_data,
+    file_name="investment_results.csv",
+    mime="text/csv"
+)
+
+st.markdown("### הערות")
+st.markdown("""
+- המחשבון משתמש בנתונים שהוזנו בצד כדי לחשב את צמיחת ההשקעה לאורך השנים.
+- ניתן לשפר ולשנות את הנוסחאות בהתאם לצרכים ספציפיים.
+- הדוח ב-PDF כולל את פרטי ההשקעה, גרף הדמיה וטבלת תוצאות.
+""")
