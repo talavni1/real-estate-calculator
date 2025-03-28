@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -7,7 +7,7 @@ import os
 from fpdf import FPDF
 from io import BytesIO
 
-# הגדרות עזר
+# פונקציות עזר
 def parse_number(number_str):
     try:
         return float(number_str.replace(',', '').replace('$', ''))
@@ -23,17 +23,17 @@ def format_number(value):
     except ValueError:
         return value
 
-# פונקציה ליצירת דו"ח PDF משודרג עם גרף ותיאור נתונים
+# פונקציה מתקדמת ליצירת דו"ח PDF
 def save_to_pdf(df, params, chart_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    
+
     # כותרת הדוח
     pdf.set_font('Arial', 'B', 16)
     pdf.cell(0, 10, 'דוח השקעות – Masor Investment Report', 0, 1, 'C')
     pdf.ln(5)
-    
+
     # פרטי ההשקעה
     pdf.set_font('Arial', '', 10)
     investment_details = (
@@ -48,21 +48,21 @@ def save_to_pdf(df, params, chart_path):
     )
     pdf.multi_cell(0, 8, investment_details)
     pdf.ln(5)
-    
+
     # הוספת גרף מהדו"ח (תמונה)
     if os.path.exists(chart_path):
         pdf.image(chart_path, x=10, w=pdf.w - 20)
         pdf.ln(10)
-    
-    # הוספת טבלה עם התוצאות
+
+    # הוספת טבלת תוצאות
     pdf.set_font('Arial', 'B', 12)
     pdf.cell(0, 10, 'טבלת תוצאות:', 0, 1)
     pdf.set_font('Arial', '', 10)
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         line = f"שנה: {row['Year']}, ערך: {row['Value']}"
         pdf.cell(0, 8, line, 0, 1)
-    
-    # שמירת הדוח בזיכרון
+
+    # שמירת הדו"ח בזיכרון
     pdf_output = BytesIO()
     pdf_bytes = pdf.output(dest='S')
     if isinstance(pdf_bytes, str):
@@ -71,12 +71,12 @@ def save_to_pdf(df, params, chart_path):
     pdf_output.seek(0)
     return pdf_output
 
-# התחלת האפליקציה
+# קביעת הגדרות העמוד
 st.set_page_config(page_title="Masor Investment Calculator", layout="wide")
 st.title("מחשבון השקעות – Masor Investment Calculator")
 st.markdown("### מערכת השקעות מתקדמת עם דוחות PDF, גרפים וטבלאות")
 
-# הצגת לוגו במרכז הסרגל הצדדי
+# הצגת הלוגו בסרגל הצדדי
 if os.path.exists("Masor_logo.png"):
     st.sidebar.image("Masor_logo.png", width=200)
 else:
@@ -84,7 +84,7 @@ else:
 
 st.sidebar.markdown("### הזן את פרטי ההשקעה")
 
-# חלוקה לעמודות לקלט מתקדם
+# חלוקה לעמודות לקבלת קלט מהמשתמש בסרגל הצדדי
 col1, col2 = st.sidebar.columns(2)
 with col1:
     investment = st.number_input("סכום השקעה ($):", value=100000, step=1000)
@@ -98,7 +98,6 @@ with col2:
 annual_interest_rate = st.number_input("ריבית שנתית (%):", value=5.0, step=0.5)
 financing_years = st.number_input("מספר שנות מימון:", value=5, step=1)
 
-# אריזת כל הפרמטרים למילון
 params = {
     "investment": investment,
     "annual_net_income": annual_net_income,
@@ -110,18 +109,17 @@ params = {
     "financing_years": financing_years
 }
 
-# חישוב השקעות – דוגמה פשוטה: ערך ההשקעה גדל כל שנה לפי נוסחה
+# חישוב נתוני ההשקעה – דוגמה פשוטה
 results = []
 for i in range(1, int(years) + 1):
     value = investment + i * (annual_net_income + annual_value_increase)
     results.append({"Year": i, "Value": value})
 df = pd.DataFrame(results)
 
-# תצוגת תוצאות במרכז המסך
 st.markdown("### תוצאות ההשקעה")
 st.dataframe(df)
 
-# יצירת גרף השקעות
+# יצירת גרף ההשקעה
 fig, ax = plt.subplots(figsize=(8, 4))
 ax.plot(df["Year"], df["Value"], marker='o', color='blue', linewidth=2)
 ax.set_xlabel("שנה")
@@ -135,7 +133,6 @@ chart_path = "temp_chart.png"
 fig.savefig(chart_path, bbox_inches="tight")
 plt.close(fig)
 
-# כפתורי הורדה – דו"ח PDF וקובץ CSV
 st.markdown("### הורדת דוחות")
 pdf_data = save_to_pdf(df, params, chart_path)
 st.download_button(
@@ -155,7 +152,7 @@ st.download_button(
 
 st.markdown("### הערות")
 st.markdown("""
-- המחשבון משתמש בנתונים שהוזנו בצד כדי לחשב את צמיחת ההשקעה לאורך השנים.
-- ניתן לשפר ולשנות את הנוסחאות בהתאם לצרכים ספציפיים.
-- הדוח ב-PDF כולל את פרטי ההשקעה, גרף הדמיה וטבלת תוצאות.
+- המחשבון משתמש בנתונים שהוזנו לצורך חישוב צמיחת ההשקעה.
+- ניתן להתאים את הנוסחאות והעיצוב בהתאם לצרכים ספציפיים.
+- הדוח ב-PDF כולל את פרטי ההשקעה, גרף וטבלת תוצאות.
 """)
