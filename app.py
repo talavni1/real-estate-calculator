@@ -136,7 +136,7 @@ plt.close(fig)
 st.markdown("### הורדת דוחות")
 pdf_data = save_to_pdf(df, params, chart_path)
 st.download_button(
-    label="הורד דו"ח PDF",
+    label='הורד דו"ח PDF',
     data=pdf_data,
     file_name="investment_report.pdf",
     mime="application/pdf"
