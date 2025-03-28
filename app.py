@@ -29,24 +29,33 @@ def save_to_pdf(df, params, chart_path):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
+    # הוספת פונט TrueType התומך בעברית
+    font_path = "DejaVuSans.ttf"
+    if os.path.exists(font_path):
+        pdf.add_font('DejaVu', '', font_path, uni=True)
+        header_font = ('DejaVu', 'B', 16)
+        normal_font = ('DejaVu', '', 10)
+        table_header_font = ('DejaVu', 'B', 12)
+    else:
+        st.error("קובץ הפונט DejaVuSans.ttf לא נמצא. יש להוריד אותו ולהניחו באותה תיקייה.")
+        header_font = ('Arial', 'B', 16)
+        normal_font = ('Arial', '', 10)
+        table_header_font = ('Arial', 'B', 12)
+
     # כותרת הדוח
-    pdf.set_font('Arial', 'B', 16)
+    pdf.set_font(*header_font)
     pdf.cell(0, 10, 'דוח השקעות – Masor Investment Report', 0, 1, 'C')
     pdf.ln(5)
 
     # פרטי ההשקעה
-    pdf.set_font('Arial', '', 10)
-    investment_details = (
-        f"סכום השקעה: {params['investment']}\n"
-        f"תשואה נטו שנתית: {params['annual_net_income']}\n"
-        f"גידול ערך שנתי: {params['annual_value_increase']}\n"
+    pdf.set_font(*normal_font)
+    details = (
+        f"סכום השקעה: {params['investment']}$\n"
+        f"תשואה נטו בסיסית: {params['base_yield']:.2f}%\n"
+        f"גידול תשואה שנתי: {params['annual_value_increase']}%\n"
         f"שנים: {params['years']}\n"
-        f"הון מושקע: {params['equity_invested']}\n"
-        f"אחוז מימון: {params['financing_percentage']}%\n"
-        f"ריבית שנתית: {params['annual_interest_rate']}%\n"
-        f"שנים למימון: {params['financing_years']}\n"
     )
-    pdf.multi_cell(0, 8, investment_details)
+    pdf.multi_cell(0, 8, details)
     pdf.ln(5)
 
     # הוספת גרף מהדו"ח (תמונה)
@@ -55,14 +64,14 @@ def save_to_pdf(df, params, chart_path):
         pdf.ln(10)
 
     # הוספת טבלת תוצאות
-    pdf.set_font('Arial', 'B', 12)
+    pdf.set_font(*table_header_font)
     pdf.cell(0, 10, 'טבלת תוצאות:', 0, 1)
-    pdf.set_font('Arial', '', 10)
+    pdf.set_font(*normal_font)
     for _, row in df.iterrows():
-        line = f"שנה: {row['Year']}, ערך: {row['Value']}"
+        line = f"שנה: {int(row['Year'])}, תשואה: {row['Yield (%)']:.2f}%, הכנסה שנתית: {row['Expected Income ($)']:.2f}$, ערך מצטבר: {row['Cumulative Value ($)']:.2f}$"
         pdf.cell(0, 8, line, 0, 1)
 
-    # שמירת הדו"ח בזיכרון
+    # שמירת הדו"ח בזיכרון (BytesIO)
     pdf_output = BytesIO()
     pdf_bytes = pdf.output(dest='S')
     if isinstance(pdf_bytes, str):
