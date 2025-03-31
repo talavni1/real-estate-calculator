@@ -6,17 +6,15 @@ from PIL import Image
 import os
 from fpdf import FPDF
 from io import BytesIO
-import arabic_reshaper
-from bidi.algorithm import get_display
 import locale
 
-# הגדרת locale לעיצוב מספרים
+# Set locale for number formatting
 try:
     locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 except:
     locale.setlocale(locale.LC_ALL, '')
 
-# פונקציות עזר
+# Helper functions
 def parse_number(number_str):
     try:
         return float(number_str.replace(',', '').replace('$', ''))
@@ -32,66 +30,63 @@ def format_number(value):
     except ValueError:
         return value
 
-# פונקציה לעיבוד טקסט בעברית (אם נדרש בגרף)
-def process_hebrew_text(text):
-    reshaped_text = arabic_reshaper.reshape(text)
-    bidi_text = get_display(reshaped_text)
-    return bidi_text
+# In English we don't need RTL processing, so just return the text as is.
+def process_text(text):
+    return text
 
-# פונקציה ליצירת דו"ח PDF משודרג עם תמיכה בעברית
-def save_to_pdf(df, params, chart_path):
+# Function to generate a PDF report with investment details
+def save_to_pdf(df, params, chart_path, title="Investment Report"):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # הוספת פונט TrueType התומך בעברית – ודא שקובץ DejaVuSans.ttf נמצא בתיקייה
     font_path = "DejaVuSans.ttf"
-    if os.path.exists(font_path):
-        pdf.add_font('DejaVu', '', font_path, uni=True)
-        header_font = ('DejaVu', 'B', 16)
-        normal_font = ('DejaVu', '', 10)
-        table_header_font = ('DejaVu', 'B', 12)
-    else:
-        st.error("קובץ הפונט DejaVuSans.ttf לא נמצא. יש להוריד אותו ולהניחו באותה תיקייה.")
+    try:
+        if os.path.exists(font_path):
+            pdf.add_font('DejaVu', '', font_path, uni=True)
+            header_font = ('DejaVu', 'B', 16)
+            normal_font = ('DejaVu', '', 10)
+            table_header_font = ('DejaVu', 'B', 12)
+        else:
+            st.error("Font file DejaVuSans.ttf not found. Please download it and place it in the same folder.")
+            header_font = ('Arial', 'B', 16)
+            normal_font = ('Arial', '', 10)
+            table_header_font = ('Arial', 'B', 12)
+    except Exception as e:
+        st.error(f"Error loading DejaVu font: {e}. Using default font.")
         header_font = ('Arial', 'B', 16)
         normal_font = ('Arial', '', 10)
         table_header_font = ('Arial', 'B', 12)
 
-    # כותרת הדוח – ניתן לעבד טקסט בעברית אם נדרש
+    # Report title
     pdf.set_font(*header_font)
-    pdf.cell(0, 10, 'דוח השקעות – Masor Investment Report', 0, 1, 'C')
+    pdf.cell(0, 10, title, 0, 1, 'C')
     pdf.ln(5)
 
-    # פרטי ההשקעה
+    # Investment details
     pdf.set_font(*normal_font)
-    details = (
-        f"סכום השקעה: {params['investment']}$\n"
-        f"תשואה נטו בסיסית: {params['base_yield']:.2f}%\n"
-        f"גידול תשואה שנתי: {params['annual_value_increase']}%\n"
-        f"שנים: {params['years']}\n"
-    )
+    details = ""
+    for key, value in params.items():
+        details += f"{key}: {value}\n"
     pdf.multi_cell(0, 8, details)
     pdf.ln(5)
 
-    # הוספת גרף מהדו"ח (תמונה)
+    # Add chart image if exists
     if os.path.exists(chart_path):
         pdf.image(chart_path, x=10, w=pdf.w - 20)
         pdf.ln(10)
 
-    # הוספת טבלת תוצאות
+    # Add results table
     pdf.set_font(*table_header_font)
-    pdf.cell(0, 10, 'טבלת תוצאות:', 0, 1)
+    pdf.cell(0, 10, 'Results Table:', 0, 1)
     pdf.set_font(*normal_font)
     for _, row in df.iterrows():
-        line = (
-            f"שנה: {int(row['Year'])}, "
-            f"תשואה: {row['Yield (%)']:.2f}%, "
-            f"הכנסה שנתית: {row['Expected Income ($)']:.2f}$, "
-            f"ערך מצטבר: {row['Cumulative Value ($)']:.2f}$"
-        )
+        line = ""
+        for col in df.columns:
+            line += f"{col}: {row[col]} | "
         pdf.cell(0, 8, line, 0, 1)
 
-    # שמירת הדו"ח בזיכרון (BytesIO)
+    # Save PDF to memory
     pdf_output = BytesIO()
     pdf_bytes = pdf.output(dest='S')
     if isinstance(pdf_bytes, str):
@@ -100,97 +95,187 @@ def save_to_pdf(df, params, chart_path):
     pdf_output.seek(0)
     return pdf_output
 
-# קביעת הגדרות העמוד
-st.set_page_config(page_title="Masor Investment Calculator", layout="wide")
-st.title("מחשבון השקעות – Masor Investment Calculator")
-st.markdown("### מערכת השקעות מתקדמת עם דוחות PDF, גרפים וטבלאות")
+# Page configuration and title
+st.set_page_config(page_title="Investment Calculator", layout="wide")
+st.title("Investment Calculator")
+st.markdown("### Advanced investment system with PDF reports, charts, and tables")
 
-# הצגת הלוגו בסרגל הצדדי
+# Sidebar logo
 if os.path.exists("Masor_logo.png"):
     st.sidebar.image("Masor_logo.png", width=200)
 else:
-    st.sidebar.write("קובץ הלוגו 'Masor_logo.png' לא נמצא.")
+    st.sidebar.write("Logo file 'Masor_logo.png' not found.")
 
-st.sidebar.markdown("### הזן את פרטי ההשקעה")
+# Choose calculator type: Basic or Advanced
+calc_type = st.sidebar.radio("Select Calculator Type", ["Basic", "Advanced"])
 
-# קלט מהמשתמש – באמצעות סרגל צדדי
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    investment_input = st.text_input("סכום השקעה ($):", value="100000")
-    annual_net_income_input = st.text_input("הכנסה נטו שנתית ($):", value="5000")
-with col2:
-    years = st.number_input("מספר שנים:", value=10, step=1)
-    annual_value_increase = st.number_input("גידול תשואה שנתי (%):", value=5.0, step=0.5)
+if calc_type == "Basic":
+    st.sidebar.markdown("### Basic Investment Details")
+    investment_input = st.sidebar.text_input("Investment Amount ($):", value="100000")
+    annual_net_income_input = st.sidebar.text_input("Annual Net Income ($):", value="5000")
+    years = st.sidebar.number_input("Number of Years:", value=10, step=1)
+    annual_yield_growth = st.sidebar.number_input("Annual Yield Growth (%):", value=5.0, step=0.5)
 
-# עיצוב קלט מספרי עם פסיקים (לדוגמה, עבור סכום השקעה)
-investment = parse_number(investment_input)
-annual_net_income = parse_number(annual_net_income_input)
+    # Convert inputs and calculate base yield
+    investment = parse_number(investment_input)
+    annual_net_income = parse_number(annual_net_income_input)
+    base_yield = (annual_net_income / investment * 100) if investment > 0 else 0
 
-# חישוב תשואה נטו בסיסית כאחוז – הכנסה נטו חלקי השקעה
-base_yield = (annual_net_income / investment * 100) if investment > 0 else 0
+    params = {
+        "Investment Amount": f"${investment}",
+        "Annual Net Income": f"${annual_net_income}",
+        "Annual Yield Growth": f"{annual_yield_growth}%",
+        "Number of Years": years,
+        "Base Yield": f"{base_yield:.2f}%"
+    }
 
-# עדכון פרמטרים במילון
-params = {
-    "investment": investment,
-    "annual_net_income": annual_net_income,
-    "annual_value_increase": annual_value_increase,
-    "years": years,
-    "base_yield": base_yield
-}
+    results = []
+    cumulative_value = investment
+    for i in range(1, int(years) + 1):
+        current_yield = base_yield * ((1 + annual_yield_growth / 100) ** (i - 1))
+        expected_income = cumulative_value * (current_yield / 100)
+        cumulative_value += expected_income
+        results.append({
+            "Year": i,
+            "Yield (%)": round(current_yield, 2),
+            "Expected Income ($)": round(expected_income, 2),
+            "Cumulative Value ($)": round(cumulative_value, 2)
+        })
+    df = pd.DataFrame(results)
 
-# חישוב נתוני ההשקעה – עם צמיחה מצרפית
-results = []
-cumulative_value = investment
-for i in range(1, int(years) + 1):
-    current_yield = base_yield * ((1 + annual_value_increase/100) ** (i - 1))
-    expected_income = cumulative_value * (current_yield / 100)
-    cumulative_value = cumulative_value + expected_income
-    results.append({
-        "Year": i,
-        "Yield (%)": current_yield,
-        "Expected Income ($)": expected_income,
-        "Cumulative Value ($)": cumulative_value
-    })
-df = pd.DataFrame(results)
+    st.markdown("### Basic Investment Results")
+    st.dataframe(df)
 
-st.markdown("### תוצאות ההשקעה")
-st.dataframe(df)
+    # Chart: Cumulative Value over the Years
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(df["Year"], df["Cumulative Value ($)"], marker='o', linewidth=2)
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Cumulative Value ($)")
+    ax.set_title(process_text("Investment Growth Over the Years"))
+    ax.grid(True)
+    st.pyplot(fig)
 
-# יצירת גרף – נציג את הערך המצטבר לאורך השנים
-fig, ax = plt.subplots(figsize=(8, 4))
-ax.plot(df["Year"], df["Cumulative Value ($)"], marker='o', color='blue', linewidth=2)
-ax.set_xlabel("שנה")
-ax.set_ylabel("ערך מצטבר ($)")
-# עיבוד כותרת בעברית באמצעות פונקציה לעיבוד RTL (אם נדרש)
-ax.set_title(process_hebrew_text("צמיחת ההשקעה לאורך השנים"))
-ax.grid(True)
-st.pyplot(fig)
+    chart_path = "temp_chart_basic.png"
+    fig.savefig(chart_path, bbox_inches="tight")
+    plt.close(fig)
 
-# שמירת הגרף כתמונה זמנית עבור הדוח
-chart_path = "temp_chart.png"
-fig.savefig(chart_path, bbox_inches="tight")
-plt.close(fig)
+    st.markdown("### Download Reports")
+    pdf_data = save_to_pdf(df, params, chart_path, title="Basic Investment Report")
+    st.download_button(
+        label='Download PDF Report',
+        data=pdf_data,
+        file_name="investment_report_basic.pdf",
+        mime="application/pdf"
+    )
+    csv_data = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download CSV File",
+        data=csv_data,
+        file_name="investment_results_basic.csv",
+        mime="text/csv"
+    )
 
-st.markdown("### הורדת דוחות")
-pdf_data = save_to_pdf(df, params, chart_path)
-st.download_button(
-    label='הורד דו"ח PDF',
-    data=pdf_data,
-    file_name="investment_report.pdf",
-    mime="application/pdf"
-)
+else:  # Advanced calculator
+    st.sidebar.markdown("### Advanced Investment Details")
+    asset_cost_input = st.sidebar.text_input("Property Cost ($):", value="200000")
+    equity_input = st.sidebar.text_input("Equity ($):", value="80000")
+    bank_financing_input = st.sidebar.text_input("Bank Financing ($):", value="120000")
+    annual_interest_rate_input = st.sidebar.text_input("Annual Interest Rate (%):", value="3.5")
+    appreciation_rate_input = st.sidebar.text_input("Annual Appreciation Rate (%):", value="4")
+    expected_income_input = st.sidebar.text_input("Expected Annual Income ($):", value="15000")
+    investment_period = st.sidebar.number_input("Investment Period (Years):", value=10, step=1)
 
-csv_data = df.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="הורד קובץ CSV",
-    data=csv_data,
-    file_name="investment_results.csv",
-    mime="text/csv"
-)
+    # Convert inputs to numbers
+    asset_cost = parse_number(asset_cost_input)
+    equity = parse_number(equity_input)
+    bank_financing = parse_number(bank_financing_input)
+    try:
+        annual_interest_rate = float(annual_interest_rate_input)
+    except ValueError:
+        annual_interest_rate = 0.0
+    try:
+        appreciation_rate = float(appreciation_rate_input)
+    except ValueError:
+        appreciation_rate = 0.0
+    expected_income = parse_number(expected_income_input)
+    period = investment_period
 
-st.markdown("### הערות")
-st.markdown("""
-- מחשבון זה מחשב תשואה שנתית בצורה מצרפית כאשר התשואה הבסיסית מחושבת מהכנסה נטו חלקי השקעה.
-- בכל שנה, התשואה גדלה לפי אחוז הגידול השנתי שהוזן.
-- הדוח ב-PDF כולל פרטי השקעה, גרף וטבלת תוצאות.
-""")
+    params = {
+        "Property Cost": f"${asset_cost}",
+        "Equity": f"${equity}",
+        "Bank Financing": f"${bank_financing}",
+        "Annual Interest Rate": f"{annual_interest_rate}%",
+        "Annual Appreciation Rate": f"{appreciation_rate}%",
+        "Expected Annual Income": f"${expected_income}",
+        "Investment Period": period
+    }
+
+    results_adv = []
+    current_asset_value = asset_cost
+    for year in range(1, int(period) + 1):
+        # Calculate annual interest cost on bank financing
+        interest_cost = bank_financing * annual_interest_rate / 100
+        # Calculate property appreciation
+        appreciation_value = current_asset_value * appreciation_rate / 100
+        current_asset_value += appreciation_value
+        # Net cash flow: expected income minus interest cost
+        net_cash_flow = expected_income - interest_cost
+        # Annual ROI: net cash flow plus appreciation relative to equity
+        total_return = net_cash_flow + appreciation_value
+        roi = (total_return / equity * 100) if equity != 0 else 0
+
+        results_adv.append({
+            "Year": year,
+            "Property Value ($)": round(current_asset_value, 2),
+            "Interest Cost ($)": round(interest_cost, 2),
+            "Expected Income ($)": round(expected_income, 2),
+            "Appreciation ($)": round(appreciation_value, 2),
+            "Annual ROI (%)": round(roi, 2)
+        })
+    df_adv = pd.DataFrame(results_adv)
+
+    st.markdown("### Advanced Investment Results")
+    st.dataframe(df_adv)
+
+    # Chart: Property Value over the Years
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(df_adv["Year"], df_adv["Property Value ($)"], marker='o', linewidth=2)
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Property Value ($)")
+    ax.set_title(process_text("Property Value Over the Years"))
+    ax.grid(True)
+    st.pyplot(fig)
+
+    chart_path = "temp_chart_advanced.png"
+    fig.savefig(chart_path, bbox_inches="tight")
+    plt.close(fig)
+
+    st.markdown("### Download Reports")
+    pdf_data = save_to_pdf(df_adv, params, chart_path, title="Advanced Investment Report")
+    st.download_button(
+        label='Download PDF Report',
+        data=pdf_data,
+        file_name="investment_report_advanced.pdf",
+        mime="application/pdf"
+    )
+    csv_data = df_adv.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download CSV File",
+        data=csv_data,
+        file_name="investment_results_advanced.csv",
+        mime="text/csv"
+    )
+
+st.markdown("### Notes")
+if calc_type == "Basic":
+    st.markdown("""
+    - This calculator computes the compounded annual yield where the base yield is calculated from net income divided by the investment.
+    - Each year the yield grows by the specified annual percentage.
+    - The PDF report includes investment details, a chart, and a results table.
+    """)
+else:
+    st.markdown("""
+    - This advanced calculator includes property cost, equity, bank financing, interest rate, appreciation rate, and expected annual income.
+    - Each year, the calculator computes interest cost, property appreciation, and net cash flow.
+    - The PDF report includes investment details, a chart, and a results table.
+    """)
