@@ -1,7 +1,8 @@
 streamlit
-pandas
-numpy
 matplotlib
-fpdf2
+numpy
+pandas
+Pillow
+fpdf
 arabic-reshaper
 python-bidi
