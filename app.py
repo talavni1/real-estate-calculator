@@ -24,7 +24,7 @@ def parse_number(number_str):
 def format_number(value):
     try:
         if isinstance(value, (int, float)):
-            # Format float with 2 decimals and comma separators, or integer with commas.
+            # For floats, display 2 decimal places; for integers, no decimals.
             return f"{value:,.2f}" if isinstance(value, float) else f"{value:,}"
         else:
             return str(value)
@@ -41,7 +41,7 @@ def save_to_pdf(df, params, chart_path, title="Investment Report"):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Use default font Arial to avoid custom font issues
+    # Use default font Arial
     header_font = ('Arial', 'B', 16)
     normal_font = ('Arial', '', 10)
     table_header_font = ('Arial', 'B', 12)
@@ -62,7 +62,7 @@ def save_to_pdf(df, params, chart_path, title="Investment Report"):
         pdf.image(chart_path, x=10, w=pdf.w - 20)
         pdf.ln(10)
 
-    # Create a table header for the results
+    # Create table header for the results
     pdf.set_font(*table_header_font)
     col_width = (pdf.w - 20) / len(df.columns)
     for col in df.columns:
@@ -103,16 +103,18 @@ else:
 # Choose calculator type: Basic or Advanced
 calc_type = st.sidebar.radio("Select Calculator Type", ["Basic", "Advanced"])
 
-# Use st.form to delay calculations until the user submits the form
+# Use st.form so that calculation is triggered only when the user clicks "Calculate"
 with st.sidebar.form(key="input_form"):
     if calc_type == "Basic":
         st.subheader("Basic Investment Details")
+        starting_year_basic = st.number_input("Starting Year:", value=2023, step=1)
         investment_input = st.text_input("Investment Amount ($):", value="100000")
         annual_net_income_input = st.text_input("Annual Net Income ($):", value="5000")
         years = st.number_input("Number of Years:", value=10, step=1)
         annual_yield_growth = st.number_input("Annual Yield Growth (%):", value=5.0, step=0.5)
     else:
         st.subheader("Advanced Investment Details")
+        starting_year_adv = st.number_input("Starting Year:", value=2023, step=1)
         asset_cost_input = st.text_input("Property Cost ($):", value="200000")
         equity_input = st.text_input("Equity ($):", value="80000")
         bank_financing_input = st.text_input("Bank Financing ($):", value="120000")
@@ -122,10 +124,9 @@ with st.sidebar.form(key="input_form"):
         investment_period = st.number_input("Investment Period (Years):", value=10, step=1)
     submit_button = st.form_submit_button(label="Calculate")
 
-# Only run the calculations if the form is submitted
 if submit_button:
     if calc_type == "Basic":
-        # Convert inputs to numbers
+        # Convert inputs
         investment = parse_number(investment_input)
         annual_net_income = parse_number(annual_net_income_input)
         base_yield = (annual_net_income / investment * 100) if investment > 0 else 0
@@ -136,17 +137,19 @@ if submit_button:
             "Annual Net Income": f"${format_number(annual_net_income)}",
             "Annual Yield Growth": f"{annual_yield_growth}%",
             "Number of Years": years,
+            "Starting Year": starting_year_basic,
             "Base Yield": f"{base_yield:.2f}%"
         }
 
         results = []
         cumulative_value = investment
         for i in range(1, int(years) + 1):
+            current_year = starting_year_basic + i - 1
             current_yield = base_yield * ((1 + annual_yield_growth / 100) ** (i - 1))
             expected_income = cumulative_value * (current_yield / 100)
             cumulative_value += expected_income
             results.append({
-                "Year": i,
+                "Year": current_year,
                 "Yield (%)": round(current_yield, 2),
                 "Expected Income ($)": round(expected_income, 2),
                 "Cumulative Value ($)": round(cumulative_value, 2)
@@ -154,7 +157,12 @@ if submit_button:
         df = pd.DataFrame(results)
 
         st.markdown("### Basic Investment Results")
-        st.dataframe(df)
+        st.dataframe(df.style.format({
+            "Year": "{:,}", 
+            "Yield (%)": "{:,.2f}", 
+            "Expected Income ($)": "${:,.2f}", 
+            "Cumulative Value ($)": "${:,.2f}"
+        }))
 
         # Chart: Cumulative Value over Years
         fig, ax = plt.subplots(figsize=(8, 4))
@@ -186,7 +194,7 @@ if submit_button:
         )
 
     else:
-        # Convert inputs to numbers
+        # Advanced calculator
         asset_cost = parse_number(asset_cost_input)
         equity = parse_number(equity_input)
         bank_financing = parse_number(bank_financing_input)
@@ -208,12 +216,14 @@ if submit_button:
             "Annual Interest Rate": f"{annual_interest_rate}%",
             "Annual Appreciation Rate": f"{appreciation_rate}%",
             "Expected Annual Income": f"${format_number(expected_income)}",
-            "Investment Period": period
+            "Investment Period": period,
+            "Starting Year": starting_year_adv
         }
 
         results_adv = []
         current_asset_value = asset_cost
-        for year in range(1, int(period) + 1):
+        for i in range(1, int(period) + 1):
+            current_year = starting_year_adv + i - 1
             interest_cost = bank_financing * annual_interest_rate / 100
             appreciation_value = current_asset_value * appreciation_rate / 100
             current_asset_value += appreciation_value
@@ -222,7 +232,7 @@ if submit_button:
             roi = (total_return / equity * 100) if equity != 0 else 0
 
             results_adv.append({
-                "Year": year,
+                "Year": current_year,
                 "Property Value ($)": round(current_asset_value, 2),
                 "Interest Cost ($)": round(interest_cost, 2),
                 "Expected Income ($)": round(expected_income, 2),
@@ -232,9 +242,16 @@ if submit_button:
         df_adv = pd.DataFrame(results_adv)
 
         st.markdown("### Advanced Investment Results")
-        st.dataframe(df_adv)
+        st.dataframe(df_adv.style.format({
+            "Year": "{:,}", 
+            "Property Value ($)": "${:,.2f}", 
+            "Interest Cost ($)": "${:,.2f}", 
+            "Expected Income ($)": "${:,.2f}", 
+            "Appreciation ($)": "${:,.2f}", 
+            "Annual ROI (%)": "{:,.2f}%"
+        }))
 
-        # Chart: Property Value over the Years
+        # Chart: Property Value over Years
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(df_adv["Year"], df_adv["Property Value ($)"], marker='o', linewidth=2)
         ax.set_xlabel("Year")
